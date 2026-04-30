@@ -6,7 +6,7 @@ A plugin for [Meowary](https://github.com/retran/meowary) that adds Mendix devel
 
 Meowary Mendix is a port of mxcli's original agentic harness — the skills, workflows, and commands that ship with mxcli for AI-assisted Mendix development — repackaged as a Meowary plugin.
 
-It extends Meowary with everything needed to build Mendix applications using [mxcli](https://github.com/nicecli/mxcli) and MDL (Mendix Definition Language). It adds:
+It extends Meowary with everything needed to build Mendix applications using [mxcli](https://github.com/mendixlabs/mxcli) and MDL (Mendix Definition Language). It adds:
 
 - **1 slash command** — `/mendix` routes freeform intent to the right workflow
 - **11 workflows** — entity creation, CRUD scaffolding, linting, testing, validation, and more
@@ -33,15 +33,15 @@ This adds new files without modifying existing Meowary configuration. No changes
 
 ### Setting up mxcli
 
-[mxcli](https://github.com/nicecli/mxcli) is the CLI tool that reads and writes Mendix projects. The plugin expects it as a local binary in your Mendix project root.
+[mxcli](https://github.com/mendixlabs/mxcli) is the CLI tool that reads and writes Mendix projects. The plugin expects it as a local binary in your Mendix project root.
 
-1. **Download mxcli** from [GitHub releases](https://github.com/nicecli/mxcli/releases) for your platform (macOS, Linux, Windows)
+1. **Download mxcli** from [GitHub releases](https://github.com/mendixlabs/mxcli/releases) for your platform (macOS, Linux, Windows)
 
 2. **Place the binary** in your Mendix project root (next to `project.mpr`):
 
    ```sh
    # Example for macOS
-   curl -L https://github.com/nicecli/mxcli/releases/latest/download/mxcli-darwin-arm64 -o ./mxcli
+   curl -L https://github.com/mendixlabs/mxcli/releases/latest/download/mxcli-darwin-arm64 -o ./mxcli
    chmod +x ./mxcli
    ```
 
