@@ -10,7 +10,7 @@ It extends Meowary with everything needed to build Mendix applications using [mx
 
 - **1 slash command** — `/mendix` routes freeform intent to the right workflow
 - **11 workflows** — entity creation, CRUD scaffolding, linting, testing, validation, and more
-- **50 skills** — domain model, microflows, pages, security, navigation, integrations, migration, and testing
+- **50+ skill files** — domain model, microflows, pages, security, navigation, integrations, migration, and testing
 - **1 reference file** — complete MDL command reference with syntax quick-reference and linting rules
 
 The agent never shows raw MDL. It describes changes in plain language, gets your approval, validates the script, and executes silently.
@@ -20,7 +20,7 @@ The agent never shows raw MDL. It describes changes in plain language, gets your
 Copy the `.opencode/` directory over your Meowary instance:
 
 ```sh
-cp -R .opencode/* ~/my-journal/.opencode/
+cp -R .opencode/ ~/your-meowary-instance/.opencode/
 ```
 
 This adds new files without modifying existing Meowary configuration. No changes to `AGENTS.md`, `opencode.json`, or any base skill are required.

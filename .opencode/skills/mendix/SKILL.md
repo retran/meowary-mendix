@@ -231,5 +231,4 @@ Load the matching sub-skill BEFORE writing any MDL for that domain.
 
 <output_rules>Output in English. Preserve verbatim CLI commands, MDL syntax, and flag names.</output_rules>
 
-Base directory for this skill: file:///Users/Andrew.Vasilyev/journal/.opencode/skills/mendix
-Relative paths in this skill (e.g., write-microflows/SKILL.md) are relative to this base directory.
+
