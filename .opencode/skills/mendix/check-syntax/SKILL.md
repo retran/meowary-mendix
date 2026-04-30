@@ -1,0 +1,253 @@
+---
+name: 'check-syntax'
+description: 'MDL Syntax Validation — pre-flight checklist, supported/unsupported statements, mxcli check commands, error patterns, script atomicity, and organization'
+compatibility: opencode
+---
+
+<role>MDL syntax validator — ensure MDL scripts are correct before presenting or executing them.</role>
+
+<summary>
+> Checklist and reference for validating MDL scripts before execution. Covers supported/unsupported statements, quoting rules, mxcli check workflow, common error patterns, script atomicity, and dependency-ordered organization.
+</summary>
+
+<triggers>
+Load when:
+- **ALWAYS** before presenting MDL code to users
+- **ALWAYS** before executing MDL scripts via `mxcli exec`
+- **ALWAYS** before committing MDL files to version control
+- Debugging parse errors (mismatched input, no viable alternative, extraneous input)
+</triggers>
+
+<pre_flight_checklist>
+
+### 1. Check Supported Syntax
+
+**Supported in Microflows:**
+- `declare $Var type = value;` (primitives)
+- `declare $entity Module.Entity;` (entities - no AS keyword, no = empty)
+- `declare $list list of Module.Entity = empty;` (lists)
+- `set $Var = expression;`
+- `$Var = create Module.Entity (attr = value);`
+- `change $entity (attr = value);`
+- `commit $entity [with events] [refresh];`
+- `delete $entity;`
+- `retrieve $Var from Module.Entity [where condition];`
+- `$Result = call microflow Module.Name (Param = $value);` (NOT `set $Result = ...`)
+- `$Result = call nanoflow Module.Name (Param = $value);`
+- `show page Module.PageName ($Param = $value);`
+- `close page;`
+- `validation feedback $entity/attribute message 'message';`
+- `log info|warning|error [node 'name'] 'message';`
+- `if condition then ... [else ...] end if;`
+- `loop $item in $list begin ... end loop;`
+- `return $value;`
+- `on error continue|rollback|{ handler };`
+
+**Now Supported (previously not):**
+- `rollback $entity [refresh];` - Reverts uncommitted changes
+- `retrieve ... limit n` - Returns single entity when `limit 1`
+- `boolean` without `default` - Auto-defaults to `false`
+- `buttonstyle: warning` and `buttonstyle: info` - Now parse correctly
+- Keywords as attribute names - `caption`, `label`, `title`, `text`, `content`, `format`, `range`, `source`, `check`, etc. all work unquoted
+
+**NOT Supported (will cause errors):**
+- `set $var = call microflow ...` - Use `$var = call microflow ...` (no SET)
+- `while ... end while` - Use `loop` with lists
+- `case ... when ... end case` - Use nested `if`
+- `TRY ... CATCH` - Use `on error` blocks
+- `break` / `continue` - Not implemented
+- `commit message 'text'` - Not in current grammar (session command only)
+
+### 2. Quote All Identifiers
+
+**Best practice: Always quote all identifiers** (entity names, attribute names, parameter names) with double quotes. This eliminates all reserved keyword conflicts and is always safe — quotes are stripped automatically by the parser.
+
+```sql
+create persistent entity Module."Customer" (
+  "Name": string(200),
+  "status": string(50),
+  "create": datetime
+);
+```
+
+Both `"Name"` and `` `Name` `` syntax are supported. Prefer double quotes for consistency.
+
+Run `mxcli syntax keywords` for the full list of 320+ reserved keywords.
+
+### 3. Validate with mxcli
+
+**Always run these checks:**
+
+```bash
+# Step 1: Syntax check (no project needed)
+./bin/mxcli check script.mdl
+
+# Step 2: Reference validation (needs project)
+# Validates microflow bodies, entity/enum references, and widget tree references
+./bin/mxcli check script.mdl -p app.mpr --references
+```
+
+### 4. Common Error Patterns
+
+| Error Message | Likely Cause | Fix |
+|---------------|--------------|-----|
+| `mismatched input 'set'` after `call microflow` | SET not valid with CALL | Use `$var = call microflow ...` |
+| `mismatched input 'create'` | Structural keyword as identifier | Use `"create"` (quoted) or rename |
+| `no viable alternative at input` | Unsupported syntax | Check supported statements list |
+| `microflow not found` | Referenced before created | Move microflow definition earlier or check spelling |
+| `page not found` | Page doesn't exist | Check qualified name with `--references` |
+| `entity not found` | Typo or wrong module | Use fully qualified name |
+
+</pre_flight_checklist>
+
+<validation_workflow>
+
+### Before Writing MDL
+
+1. **Check help for specific syntax:**
+   ```bash
+   ./bin/mxcli syntax microflow
+   ./bin/mxcli syntax page
+   ./bin/mxcli syntax entity
+   ```
+
+### After Writing MDL
+
+1. **Save to a file:**
+   ```bash
+   cat > script.mdl << 'EOF'
+   -- Your MDL here
+   EOF
+   ```
+
+2. **Run syntax check:**
+   ```bash
+   ./bin/mxcli check script.mdl
+   ```
+
+3. **If errors, check specific syntax:**
+   ```bash
+   ./bin/mxcli syntax keywords    # Reserved words
+   ./bin/mxcli syntax microflow   # microflow syntax
+   ```
+
+4. **Run reference check (with project):**
+   ```bash
+   ./bin/mxcli check script.mdl -p app.mpr --references
+   ```
+
+5. **Execute only after all checks pass:**
+   ```bash
+   ./bin/mxcli exec script.mdl -p app.mpr
+   ```
+
+</validation_workflow>
+
+<script_execution_behavior>
+
+**IMPORTANT: Script execution is atomic per statement, NOT per script.**
+
+When a script fails on statement N, statements 1 through N-1 have already been committed:
+
+```
+Statement 1: create module ✓ (committed)
+Statement 2: create entity ✓ (committed)
+Statement 3: create association ✓ (committed)
+Statement 4: create view entity ✗ (failed - execution stops here)
+Statement 5: create page (never executed)
+```
+
+**Recommendations:**
+1. Split scripts into phases when experimenting with uncertain syntax
+2. Use `create or replace` to make scripts idempotent
+3. Test new syntax patterns with minimal scripts first
+4. Keep a backup of your project before running large scripts
+
+</script_execution_behavior>
+
+<script_organization>
+
+Organize scripts in dependency order:
+
+```mdl
+-- ============================================
+-- PHASE 1: Enumerations (no dependencies)
+-- ============================================
+create enumeration Module.Status (
+  Active = 'Active',
+  Inactive = 'Inactive'
+);
+/
+
+-- ============================================
+-- PHASE 2: Entities (depend on enumerations)
+-- ============================================
+create persistent entity Module.Customer (
+  Name: string(200),
+  status: Module.Status
+);
+/
+
+-- ============================================
+-- PHASE 3: Associations (depend on entities)
+-- ============================================
+create association Module.Order_Customer (
+  Module.Order [*] -> Module.Customer [1]
+);
+/
+
+-- ============================================
+-- PHASE 4: Microflows (depend on entities)
+-- ============================================
+create microflow Module.ACT_Save ($Customer: Module.Customer)
+returns boolean as $success
+begin
+  declare $success boolean = false;
+  commit $Customer;
+  set $success = true;
+  return $success;
+end;
+/
+
+-- ============================================
+-- PHASE 5: Pages (depend on microflows)
+-- ============================================
+create page Module.Customer_Edit
+layout Atlas_Default
+title 'Edit Customer'
+parameter $Customer: Module.Customer
+widgets (
+  -- Can reference microflows created in Phase 4
+  button 'Save' call microflow Module.ACT_Save (Customer = $Customer)
+);
+/
+```
+
+</script_organization>
+
+<troubleshooting_parse_errors>
+
+### Error: "mismatched input 'X'"
+
+The word `X` is either:
+1. A reserved word - rename the identifier
+2. Unsupported syntax - check the supported statements list
+3. A typo - check spelling
+
+### Error: "no viable alternative at input"
+
+The parser expected something different:
+1. Check for missing semicolons
+2. Check for missing `end if`, `end loop`, etc.
+3. Verify statement syntax against the reference
+
+### Error: "extraneous input"
+
+Extra tokens found:
+1. Check for stray characters
+2. Check for duplicate semicolons
+3. Verify string quotes are balanced
+
+</troubleshooting_parse_errors>
+
+<output_rules>Output MDL code only in code blocks. Keep explanations concise.</output_rules>

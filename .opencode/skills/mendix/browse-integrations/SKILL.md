@@ -1,0 +1,195 @@
+---
+name: 'browse-integrations'
+description: 'Browse Integration Services and Contracts — SHOW/DESCRIBE OData, REST, business event, and database connection services; query MDL CATALOG integration tables; import external entities'
+compatibility: opencode
+---
+
+<role>MDL integration browser — discover and inspect external service configurations and contracts inside the local project.</role>
+
+<summary>
+> Covers discovering external services, browsing cached contracts, and querying integration assets via the MDL CATALOG (local project metadata). Distinct from the external Mendix Catalog service.
+</summary>
+
+<triggers>
+Load when:
+- User asks what external services are configured in the project
+- User wants to see available entities or actions from an OData service
+- User wants to browse a business event contract (AsyncAPI)
+- User asks about integration catalog tables
+- User wants to find entities available in a contract but not yet imported
+</triggers>
+
+<overview>
+
+**NOTE:** This covers the **MDL CATALOG keyword** (`SELECT ... FROM CATALOG.entities`), NOT the **Mendix Catalog CLI** (`mxcli catalog search`). See `catalog-search` skill for the external service registry.
+
+</overview>
+
+<discovery>
+
+```sql
+-- All OData clients (consumed services)
+show odata clients;
+
+-- All published OData services
+show odata services;
+
+-- All consumed REST services
+show rest clients;
+
+-- All published REST services
+show published rest services;
+
+-- All business event services
+show business event services;
+
+-- All database connections
+show database connections;
+
+-- All external entities (imported from OData)
+show external entities;
+
+-- All external actions used in microflows
+show external actions;
+```
+
+</discovery>
+
+<contract_browsing_odata>
+
+`create odata client` auto-fetches and caches the `$metadata` XML from HTTP(S) URLs or reads it from local files. Browse it without network access.
+
+**Note:** `MetadataUrl` supports:
+- `https://...` or `http://...` — fetches from HTTP endpoint
+- `file:///abs/path` — reads from local absolute path
+- `./path` or `path/file.xml` — reads from local relative path (resolved against `.mpr` directory)
+
+```sql
+-- List all entity types from the contract
+show contract entities from MyModule.SalesforceAPI;
+
+-- List actions/functions
+show contract actions from MyModule.SalesforceAPI;
+
+-- Inspect a specific entity (properties, keys, navigation)
+describe contract entity MyModule.SalesforceAPI.PurchaseOrder;
+
+-- Generate a CREATE EXTERNAL ENTITY statement from the contract
+describe contract entity MyModule.SalesforceAPI.PurchaseOrder format mdl;
+
+-- Inspect an action's signature
+describe contract action MyModule.SalesforceAPI.CreateOrder;
+```
+
+</contract_browsing_odata>
+
+<contract_browsing_async_api>
+
+Business event client services cache the AsyncAPI YAML:
+
+```sql
+-- List channels
+show contract channels from MyModule.ShopEventsClient;
+
+-- List messages with payload info
+show contract messages from MyModule.ShopEventsClient;
+
+-- Inspect a message's payload properties
+describe contract message MyModule.ShopEventsClient.OrderChangedEvent;
+```
+
+</contract_browsing_async_api>
+
+<catalog_queries>
+
+```sql
+refresh catalog;
+
+-- All contract entities across all OData clients
+select ServiceQualifiedName, EntityName, EntitySetName, PropertyCount, Summary
+from CATALOG.CONTRACT_ENTITIES;
+
+-- All contract actions
+select ServiceQualifiedName, ActionName, ParameterCount, ReturnType
+from CATALOG.CONTRACT_ACTIONS;
+
+-- All contract messages
+select ServiceQualifiedName, MessageName, ChannelName, OperationType, PropertyCount
+from CATALOG.CONTRACT_MESSAGES;
+
+-- Find available entities NOT YET imported
+select ce.EntityName, ce.ServiceQualifiedName, ce.PropertyCount
+from CATALOG.CONTRACT_ENTITIES ce
+left join CATALOG.EXTERNAL_ENTITIES ee
+  on ce.ServiceQualifiedName = ee.ServiceName and ce.EntityName = ee.RemoteName
+where ee.Id IS null;
+
+-- All REST operations across all consumed services
+select ServiceQualifiedName, HttpMethod, path, Name
+from CATALOG.REST_OPERATIONS
+ORDER by ServiceQualifiedName, path;
+
+-- Cross-cutting: all integration services in a module
+select ObjectType, QualifiedName
+from CATALOG.OBJECTS
+where ObjectType in ('ODATA_CLIENT', 'REST_CLIENT', 'ODATA_SERVICE',
+  'PUBLISHED_REST_SERVICE', 'BUSINESS_EVENT_SERVICE', 'DATABASE_CONNECTION')
+and ModuleName = 'Integration';
+```
+
+</catalog_queries>
+
+<workflow_import_entities>
+
+### Bulk import (all or filtered)
+
+```sql
+-- Import all entity types at once
+create external entities from MyModule.SalesforceAPI;
+
+-- Import into a different module
+create external entities from MyModule.SalesforceAPI into Integration;
+
+-- Import only specific entities
+create external entities from MyModule.SalesforceAPI entities (PurchaseOrder, Supplier);
+
+-- Idempotent re-import (updates existing)
+create or modify external entities from MyModule.SalesforceAPI;
+```
+
+### Single entity (with customization)
+
+1. Browse available entities:
+   ```sql
+   show contract entities from MyModule.SalesforceAPI;
+   ```
+
+2. Inspect the entity you want:
+   ```sql
+   describe contract entity MyModule.SalesforceAPI.PurchaseOrder;
+   ```
+
+3. Generate the CREATE statement:
+   ```sql
+   describe contract entity MyModule.SalesforceAPI.PurchaseOrder format mdl;
+   ```
+
+4. Copy, customize (remove unwanted attributes), and execute:
+   ```sql
+   create external entity MyModule.PurchaseOrder
+   from odata client MyModule.SalesforceAPI (
+       EntitySet: 'PurchaseOrders',
+       RemoteName: 'PurchaseOrder',
+       Countable: Yes
+   )
+   (
+       Number: long,
+       status: string(200),
+       SupplierName: string(200),
+       GrossAmount: decimal
+   );
+   ```
+
+</workflow_import_entities>
+
+<output_rules>Output MDL code only in code blocks. Keep explanations concise.</output_rules>
